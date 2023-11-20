@@ -44,6 +44,7 @@ cmap_magenta_updated = brighten(cmap_magenta_new,beta);
 
 %Color for lines
 color_green = [38 143 75]/256;
+green = [122 168 116]/256;
 mRNA_red = brighten([212 100 39]/256,.2);
 magenta = [217 82 147]/256;
 
@@ -231,6 +232,70 @@ ylabel('time (min)')
 pbaspect([3 2 1])
 
 
+%% Find Knirps center
+
+for i = 1:length(time_bins_plot)
+
+    a = ap_bins_plot';
+    b = WT.knirps_mean(i,:)';
+    b(b<0) = 0;
+    
+    
+    % define initial conditions and bounds
+    init_vec = [7e5 0 0.05];
+    ub_vec = [1e8 ap_bins_plot(end) 1];
+    lb_vec = [1e3 ap_bins_plot(1) 0];
+    
+    options = optimoptions(@lsqnonlin,'Display','off');
+    
+    % define function
+    gauss_fun = @(x) x(1)*exp(-0.5*((x(2)-a)./x(3)).^2);
+    ob_fun = @(x) gauss_fun(x)-b;
+        
+    % perform fit
+    fitted_param = lsqnonlin(ob_fun,init_vec,lb_vec,ub_vec,options);
+    
+    % plot fitted center
+    ap_plot = linspace(ap_bins_plot(1),ap_bins_plot(end),101);
+
+    center_pos(i) = fitted_param(2);
+    
+
+    %fig = figure;
+    %hold on
+    %plot(a,b)
+    %plot(ap_plot,fitted_param(1)*exp(-0.5*((fitted_param(2)-ap_plot)./fitted_param(3)).^2))
+
+end
+
+
+fig = figure;
+%plot(time_bins_plot,center_pos,'- .','MarkerSize',10,'LineWidth',2) 
+plot(time_bins_plot,center_pos)
+ylim([-0.05 0.05])
+xlabel('time (min)')
+ylabel('Knirps center')
+
+
+%{
+center_pos = zeros(length(time_bins_plot),1);
+
+for i = 1:length(time_bins_plot)
+
+    x = WT.knirps_mean(i,5:30);
+
+    [pks,locs] = findpeaks(x);
+    locs = locs((locs>=10) & (locs<=15));
+    center_pos(i) = locs;
+
+end
+
+fig = figure;
+plot(center_pos) 
+ylim([0 20])
+%}
+    
+
 %% Figure: plot mean fluorescence vs time (not aligned)
  
 nBoots = 100;
@@ -253,7 +318,7 @@ for i = 1:length(spot_struct)
         % extract core vectors 
         fluo_vec_orig = spot_struct(i).fluo;
         time_vec_orig = spot_struct(i).time;
-        knirps_vec_orig = spot_struct(i).rawNCProtein;
+        knirps_vec_orig = spot_struct(i).rawNCProtein-knirps_offset;
         ap_vec_orig = spot_struct(i).APPosNucleus;
         
         % get off and on indices
@@ -321,27 +386,27 @@ yyaxis left
 %plot(time_plot,knirps_vec_mean,'LineWidth',5)
 errorbar(time_plot,knirps_vec_mean,knirps_vec_ste,'Color','k','CapSize',0);
 plot(time_plot,knirps_vec_mean,'-k','LineWidth',1)
-scatter(time_plot,knirps_vec_mean,50,'MarkerFaceColor',color_green,'MarkerEdgeColor','k')
-ylim([5E5 15E5])
+scatter(time_plot,knirps_vec_mean,50,'MarkerFaceColor',green,'MarkerEdgeColor','k')
+ylim([1.25E5 11.25E5])
 yyaxis right
 errorbar(time_plot,fluo_vec_mean,fluo_vec_ste,'Color','k','CapSize',0);
 plot(time_plot,fluo_vec_mean,'-k','LineWidth',1)
-scatter(time_plot,fluo_vec_mean,50,'MarkerFaceColor',mRNA_red,'MarkerEdgeColor','k')
+scatter(time_plot,fluo_vec_mean,50,'MarkerFaceColor',magenta,'MarkerEdgeColor','k')
 
 xlim([5 30])
 ylim([-5E3 2E5])
 xlabel(['time (min) into nc14'])
 
 ax = gca;
-ax.YAxis(1).Color = color_green;
-ax.YAxis(2).Color = mRNA_red;
+ax.YAxis(1).Color = green;
+ax.YAxis(2).Color = magenta;
 
 pbaspect([2 1 1])
 
 
 %% Plot supplemental sample traces
 
-spot_num = [2053,2020,2008,2002,1158,1142,1127,657,652,477,463,460,456,452,448,445,444,442,437,436,431,428,424];
+spot_num = [2053,2020,2008,2002,1158,1142,1127,657,652,477,463,460,456,452,448,445,444,442,437,436,431,428,424,397];
 
 
 time_vec_final = 0:20:1800;
@@ -352,14 +417,14 @@ for i = 1:length(spot_num)
     % extract core vectors 
     fluo_vec = spot_struct(spot_num(i)).fluo;
     time_vec = spot_struct(spot_num(i)).time;
-    knirps_vec = spot_struct(spot_num(i)).rawNCProtein;
+    knirps_vec = spot_struct(spot_num(i)).rawNCProtein-knirps_offset;
 
     ap_interp_vec = spot_struct(spot_num(i)).APPosNucleus;  
     mean_ap = nanmean(ap_interp_vec);
     
     fluo_interp_vec = spot_struct(spot_num(i)).fluoInterp;
     time_interp_vec = spot_struct(spot_num(i)).timeInterp;
-    knirps_interp_vec = spot_struct(spot_num(i)).rawNCProteinInterp;
+    knirps_interp_vec = spot_struct(spot_num(i)).rawNCProteinInterp-knirps_offset;
     
     start_index = time_interp_vec(1)/20+1;
     final_index = time_interp_vec(end)/20+1;
@@ -374,9 +439,9 @@ for i = 1:length(spot_num)
         fig1 = figure;
         hold on
         yyaxis left
-        plot(time_vec/60,knirps_vec,'-','LineWidth',2,'MarkerSize',15,'Color',color_green)
-        scatter(time_vec/60,knirps_vec,50,'MarkerFaceColor',color_green,'MarkerEdgeColor','k','Color',magenta)
-        ylim([5E5 17E5])
+        plot(time_vec/60,knirps_vec,'-','LineWidth',2,'MarkerSize',15,'Color',green)
+        scatter(time_vec/60,knirps_vec,50,'MarkerFaceColor',green,'MarkerEdgeColor','k','Color',magenta)
+        ylim([1.25E5 13.25E5])
         ylabel('[Knirps] (AU)')
         yyaxis right
         plot(time_vec_final/60,fluo_interp_vec_final/max(fluo_interp_vec_final),'-','LineWidth',2,'MarkerSize',15,'Color',magenta)
@@ -390,7 +455,7 @@ for i = 1:length(spot_num)
         pbaspect([3 1 1])
     
         ax = gca;
-        ax.YAxis(1).Color = color_green;
+        ax.YAxis(1).Color = green;
         ax.YAxis(2).Color = magenta;
     end
       
